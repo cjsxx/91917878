@@ -1,0 +1,335 @@
+local fov = 1000
+local maxDistance = 400
+local maxTransparency = 0.1
+local smoothness = 0.25  -- 平滑系数（0-1之间，越小越平滑）
+local teamCheck = false
+local wallCheck = true
+local aimPart = "Torso"  
+local aimAssist = false  -- 默认关闭，通过按钮开启
+local aimButtonActive = false  -- 瞄准按钮状态
+
+local RunService = game:GetService("RunService")
+local Players = game:GetService("Players")
+local UserInputService = game:GetService("UserInputService")
+local TouchGui = game:GetService("TouchGui")
+local Cam = game.Workspace.CurrentCamera
+
+-- 绘制FOV圈
+local FOVring = Drawing.new("Circle")
+FOVring.Visible = true
+FOVring.Thickness = 2
+FOVring.Color = Color3.fromRGB(128, 0, 128)
+FOVring.Filled = false
+FOVring.Radius = fov
+FOVring.Position = Cam.ViewportSize / 2
+
+-- 创建屏幕按钮
+local function createAimButton()
+    local screenGui = Instance.new("ScreenGui")
+    screenGui.Name = "AimAssistGUI"
+    screenGui.ResetOnSpawn = false
+    screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+    
+    -- 确保GUI在玩家身上
+    local playerGui = Players.LocalPlayer:WaitForChild("PlayerGui")
+    screenGui.Parent = playerGui
+    
+    -- 创建瞄准按钮
+    local aimButton = Instance.new("ImageButton")
+    aimButton.Name = "AimButton"
+    aimButton.Size = UDim2.new(0, 80, 0, 80)
+    aimButton.Position = UDim2.new(0.9, -40, 0.8, -40)  -- 右下角
+    aimButton.BackgroundColor3 = Color3.fromRGB(128, 0, 128)
+    aimButton.BackgroundTransparency = 0.3
+    aimButton.BorderSizePixel = 0
+    
+    -- 创建圆角
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(0, 40)
+    corner.Parent = aimButton
+    
+    -- 创建文字
+    local textLabel = Instance.new("TextLabel")
+    textLabel.Name = "ButtonText"
+    textLabel.Size = UDim2.new(1, 0, 1, 0)
+    textLabel.BackgroundTransparency = 1
+    textLabel.Text = "⚡"
+    textLabel.TextColor3 = Color3.new(1, 1, 1)
+    textLabel.TextSize = 40
+    textLabel.Font = Enum.Font.GothamBold
+    textLabel.Parent = aimButton
+    
+    aimButton.Parent = screenGui
+    
+    -- 按钮点击事件
+    aimButton.MouseButton1Click:Connect(function()
+        aimAssist = not aimAssist
+        aimButtonActive = aimAssist
+        
+        -- 改变按钮颜色反馈
+        if aimAssist then
+            aimButton.BackgroundColor3 = Color3.fromRGB(0, 255, 0)  -- 绿色表示开启
+            textLabel.Text = "⚡ ON"
+            textLabel.TextSize = 20
+        else
+            aimButton.BackgroundColor3 = Color3.fromRGB(128, 0, 128)  -- 紫色表示关闭
+            textLabel.Text = "⚡"
+            textLabel.TextSize = 40
+        end
+        
+        print("Aim Assist:", aimAssist and "ON" or "OFF")
+    end)
+    
+    -- 添加拖拽功能
+    local dragging = false
+    local dragInput, dragStart, startPos
+    
+    aimButton.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.Touch then
+            dragging = true
+            dragStart = input.Position
+            startPos = aimButton.Position
+        end
+    end)
+    
+    aimButton.InputChanged:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.Touch and dragging then
+            local delta = input.Position - dragStart
+            aimButton.Position = UDim2.new(
+                startPos.X.Scale, 
+                startPos.X.Offset + delta.X,
+                startPos.Y.Scale, 
+                startPos.Y.Offset + delta.Y
+            )
+        end
+    end)
+    
+    aimButton.InputEnded:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.Touch then
+            dragging = false
+        end
+    end)
+    
+    return aimButton
+end
+
+-- 创建FOV调节滑块
+local function createFOVSlider()
+    local screenGui = Players.LocalPlayer.PlayerGui:FindFirstChild("AimAssistGUI")
+    if not screenGui then return end
+    
+    local sliderFrame = Instance.new("Frame")
+    sliderFrame.Name = "FOVSlider"
+    sliderFrame.Size = UDim2.new(0, 200, 0, 40)
+    sliderFrame.Position = UDim2.new(0.5, -100, 0.9, -20)
+    sliderFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+    sliderFrame.BackgroundTransparency = 0.3
+    sliderFrame.BorderSizePixel = 0
+    
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(0, 10)
+    corner.Parent = sliderFrame
+    
+    local slider = Instance.new("ImageButton")
+    slider.Name = "Slider"
+    slider.Size = UDim2.new(0.9, 0, 0.6, 0)
+    slider.Position = UDim2.new(0.05, 0, 0.2, 0)
+    slider.BackgroundColor3 = Color3.fromRGB(100, 100, 100)
+    slider.BackgroundTransparency = 0.5
+    slider.BorderSizePixel = 0
+    
+    local sliderCorner = Instance.new("UICorner")
+    sliderCorner.CornerRadius = UDim.new(0, 5)
+    sliderCorner.Parent = slider
+    
+    local fill = Instance.new("Frame")
+    fill.Name = "Fill"
+    fill.Size = UDim2.new(fov / 2000, 0, 1, 0)  -- 最大2000
+    fill.BackgroundColor3 = Color3.fromRGB(128, 0, 128)
+    fill.BorderSizePixel = 0
+    
+    local fillCorner = Instance.new("UICorner")
+    fillCorner.CornerRadius = UDim.new(0, 5)
+    fillCorner.Parent = fill
+    
+    fill.Parent = slider
+    
+    local valueLabel = Instance.new("TextLabel")
+    valueLabel.Name = "ValueLabel"
+    valueLabel.Size = UDim2.new(0, 60, 1, 0)
+    valueLabel.Position = UDim2.new(1, 5, 0, 0)
+    valueLabel.BackgroundTransparency = 1
+    valueLabel.Text = tostring(fov)
+    valueLabel.TextColor3 = Color3.new(1, 1, 1)
+    valueLabel.TextSize = 16
+    valueLabel.Font = Enum.Font.Gotham
+    valueLabel.TextXAlignment = Enum.TextXAlignment.Left
+    valueLabel.Parent = sliderFrame
+    
+    sliderFrame.Parent = screenGui
+    
+    -- 滑块拖拽功能
+    local dragging = false
+    
+    slider.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.Touch then
+            dragging = true
+        end
+    end)
+    
+    slider.InputChanged:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.Touch and dragging then
+            local pos = input.Position
+            local absPos = slider.AbsolutePosition
+            local absSize = slider.AbsoluteSize
+            local relativeX = math.clamp((pos.X - absPos.X) / absSize.X, 0, 1)
+            
+            fill.Size = UDim2.new(relativeX, 0, 1, 0)
+            fov = math.floor(relativeX * 2000)
+            FOVring.Radius = fov
+            valueLabel.Text = tostring(fov)
+        end
+    end)
+    
+    slider.InputEnded:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.Touch then
+            dragging = false
+        end
+    end)
+end
+
+local function updateDrawings()
+    FOVring.Position = Cam.ViewportSize / 2
+end
+
+-- 平滑移动到目标位置
+local function smoothLookAt(target, smooth)
+    if not target then return end
+    
+    local currentCF = Cam.CFrame
+    local lookVector = (target - currentCF.Position).unit
+    local targetCF = CFrame.new(currentCF.Position, currentCF.Position + lookVector)
+    
+    local newCF = currentCF:Lerp(targetCF, smooth)
+    Cam.CFrame = newCF
+end
+
+local function calculateTransparency(distance)
+    return (1 - (distance / fov)) * maxTransparency
+end
+
+local function isPlayerAlive(player)
+    local character = player.Character
+    return character and character:FindFirstChild("Humanoid") and character.Humanoid.Health > 0
+end
+
+local function isPlayerVisibleThroughWalls(player, trg_part)
+    if not wallCheck then
+        return true
+    end
+
+    local localPlayerCharacter = Players.LocalPlayer.Character
+    if not localPlayerCharacter then
+        return false
+    end
+
+    local part = player.Character and player.Character:FindFirstChild(trg_part)
+    if not part then
+        return false
+    end
+
+    local ray = Ray.new(Cam.CFrame.Position, part.Position - Cam.CFrame.Position)
+    local hit, _ = workspace:FindPartOnRayWithIgnoreList(ray, {localPlayerCharacter, Cam})
+
+    if hit and (hit:IsDescendantOf(player.Character) or hit:IsDescendantOf(workspace:FindFirstChild("Ignore"))) then
+        return true
+    end
+
+    local direction = (part.Position - Cam.CFrame.Position).unit
+    local nearRay = Ray.new(Cam.CFrame.Position + direction * 2, direction * maxDistance)
+    local nearHit, _ = workspace:FindPartOnRayWithIgnoreList(nearRay, {localPlayerCharacter, Cam})
+
+    return nearHit and nearHit:IsDescendantOf(player.Character)
+end
+
+local function getTargetInFOV()
+    local nearest = nil
+    local last = math.huge
+    local playerMousePos = Cam.ViewportSize / 2
+    local localPlayer = Players.LocalPlayer
+
+    for _, player in ipairs(Players:GetPlayers()) do
+        if player ~= localPlayer and (not teamCheck or player.Team ~= localPlayer.Team) and isPlayerAlive(player) then
+            local humanoid = player.Character and player.Character:FindFirstChild("Humanoid")
+            local part = player.Character and player.Character:FindFirstChild(aimPart)
+            if humanoid and part then
+                local ePos, isVisible = Cam:WorldToViewportPoint(part.Position)
+                local distance = (Vector2.new(ePos.x, ePos.y) - playerMousePos).Magnitude
+
+                if distance < last and isVisible and distance < fov and distance < maxDistance and isPlayerVisibleThroughWalls(player, aimPart) then
+                    last = distance
+                    nearest = player
+                end
+            end
+        end
+    end
+
+    return nearest
+end
+
+-- 等待玩家加载完成
+Players.LocalPlayer:WaitForChild("PlayerGui")
+
+-- 创建手机界面
+local aimButton = createAimButton()
+createFOVSlider()
+
+-- 添加触摸开关提示
+local screenGui = Players.LocalPlayer.PlayerGui:FindFirstChild("AimAssistGUI")
+if screenGui then
+    local tipLabel = Instance.new("TextLabel")
+    tipLabel.Name = "TipLabel"
+    tipLabel.Size = UDim2.new(0, 200, 0, 30)
+    tipLabel.Position = UDim2.new(0.5, -100, 0.7, 0)
+    tipLabel.BackgroundTransparency = 1
+    tipLabel.Text = "点击紫色按钮开启/关闭辅助瞄准"
+    tipLabel.TextColor3 = Color3.new(1, 1, 1)
+    tipLabel.TextSize = 14
+    tipLabel.Font = Enum.Font.Gotham
+    tipLabel.TextStrokeTransparency = 0.5
+    tipLabel.Parent = screenGui
+    
+    -- 3秒后隐藏提示
+    task.wait(3)
+    tipLabel.TextTransparency = 1
+end
+
+-- 主循环
+RunService.RenderStepped:Connect(function()
+    updateDrawings()
+    
+    if aimAssist then
+        local closest = getTargetInFOV()
+        
+        if closest and closest.Character and closest.Character:FindFirstChild(aimPart) then
+            local part = closest.Character[aimPart]
+            targetPosition = part.Position
+            currentTarget = closest
+            
+            smoothLookAt(targetPosition, smoothness)
+        end
+        
+        if closest then
+            local part = closest.Character[aimPart]
+            local ePos, isVisible = Cam:WorldToViewportPoint(part.Position)
+            local distance = (Vector2.new(ePos.x, ePos.y) - (Cam.ViewportSize / 2)).Magnitude
+            FOVring.Transparency = calculateTransparency(distance)
+        else
+            FOVring.Transparency = maxTransparency
+        end
+    end
+end)
+
+-- 控制台输出提示
+print("手机版辅助瞄准已加载")
+print("点击紫色按钮开启/关闭")
