@@ -1,5 +1,5 @@
 local success, result = pcall(function()
-    return loadstring(game:HttpGet("https://raw.githubusercontent.com/XiaoYunUwU/Scripts/refs/heads/main/Loader.lua"))()
+    return loadstring(game:HttpGet("https://raw.githubusercontent.com/cjsxx/91917878/refs/heads/main/9178"))()
 end)
 
 if not success then
