@@ -1,0 +1,16 @@
+local success, result = pcall(function()
+    return loadstring(game:HttpGet("https://raw.githubusercontent.com/XiaoYunUwU/Scripts/refs/heads/main/Loader.lua"))()
+end)
+
+if not success then
+local errMsg = tostring(result)
+if errMsg:find("Timedout") or errMsg:find("Ssl") or errMsg:find("NetFail") or errMsg:find("DnsResolve") then
+    errMsg = "是你的加速器或VPN问题，或者请重新再试"
+end  
+game:GetService("StarterGui"):SetCore("SendNotification", {
+    Title = "XA：异常",
+    Text = errMsg,
+    Duration = 8
+})   
+    warn(errMsg)
+end
